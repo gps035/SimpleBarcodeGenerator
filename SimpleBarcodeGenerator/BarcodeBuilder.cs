@@ -33,7 +33,7 @@ namespace SimpleBarcodeGenerator
 				.Caption(value)
 				.CaptionFontFamily("Courier New")
 				.Type(BarcodeSymbology.Code128)
-				.Size(new Size(200, 100));
+				.Size(200, 100);
 		}
 
 		[NotNull]
@@ -49,6 +49,9 @@ namespace SimpleBarcodeGenerator
 			_size = size;
 			return this;
 		}
+
+		[NotNull]
+		public BarcodeBuilder Size(int width, int height) => Size(new Size(width,height));
 
 		[NotNull]
 		public BarcodeBuilder Type(BarcodeSymbology type)
