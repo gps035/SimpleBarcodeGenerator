@@ -76,21 +76,25 @@ namespace SimpleBarcodeGenerator
 			var max = Math.Max(_size.Width, _size.Height);
 			var size = new Size(max, max);
 			var factory = BarcodeDrawFactory.GetSymbology(_type);
-			var barcode = factory.Draw(_value, factory.GetPrintMetrics(size, size, _value.Length));
-			if (_caption == null)
+			using (var barcode = factory.Draw(_value, factory.GetPrintMetrics(size, size, _value.Length)))
 			{
-				return new Bitmap(barcode, new Size(_size.Width, _size.Height));
+				if (_caption == null)
+				{
+					return new Bitmap(barcode, new Size(_size.Width, _size.Height));
+				}
+				var textHeight = _size.Height / 5;
+				var bitmap = new Bitmap(_size.Width, _size.Height);
+				using (var g = Graphics.FromImage(bitmap))
+				{
+					g.DrawImage(barcode, 0, 0, _size.Width, _size.Height - textHeight);
+					//Append another image for the text underneath
+					using (var text = TextToImage(_caption, _size.Width, textHeight, _fontFamily))
+					{
+						g.DrawImage(text, 0, _size.Height - textHeight);
+					}
+				}
+				return bitmap;
 			}
-			var textHeight = _size.Height / 5;
-			var bitmap = new Bitmap(_size.Width, _size.Height);
-			using (var g = Graphics.FromImage(bitmap))
-			{
-				g.DrawImage(barcode, 0, 0, _size.Width, _size.Height - textHeight);
-				//Append another image for the text underneath
-				var text = TextToImage(_caption, _size.Width, textHeight, _fontFamily);
-				g.DrawImage(text, 0, _size.Height - textHeight);
-			}
-			return bitmap;
 		}
 
 		[NotNull]
@@ -139,8 +143,10 @@ namespace SimpleBarcodeGenerator
 		{
 			using (var ms = new MemoryStream())
 			{
-				GenerateImage()
-					.Save(ms, imageFormat);
+				using (var image = GenerateImage())
+				{
+					image.Save(ms, imageFormat);
+				}
 				return ms.ToArray();
 			}
 		}
