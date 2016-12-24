@@ -1,3 +1,7 @@
+// <copyright file="BarcodeBuilder.cs" company="Dataphiles Ltd.">
+//   Copyright (c) 2016 Dataphiles Ltd.
+// </copyright>
+
 using System;
 using System.Drawing;
 using System.Drawing.Imaging;
@@ -14,6 +18,7 @@ namespace SimpleBarcodeGenerator
 		private string _fontFamily;
 		private Size _size;
 		private BarcodeSymbology _type;
+		private bool _addCharacterSpacing;
 
 		private BarcodeBuilder(string value)
 		{
@@ -33,6 +38,7 @@ namespace SimpleBarcodeGenerator
 				.Caption(value)
 				.CaptionFontFamily("Courier New")
 				.Type(BarcodeSymbology.Code128)
+				.CharacterSpacing(true)
 				.Size(200, 100);
 		}
 
@@ -51,12 +57,19 @@ namespace SimpleBarcodeGenerator
 		}
 
 		[NotNull]
-		public BarcodeBuilder Size(int width, int height) => Size(new Size(width,height));
+		public BarcodeBuilder Size(int width, int height) => Size(new Size(width, height));
 
 		[NotNull]
 		public BarcodeBuilder Type(BarcodeSymbology type)
 		{
 			_type = type;
+			return this;
+		}
+
+		[NotNull]
+		public BarcodeBuilder CharacterSpacing(bool spacing)
+		{
+			_addCharacterSpacing = spacing;
 			return this;
 		}
 
@@ -70,6 +83,23 @@ namespace SimpleBarcodeGenerator
 			}
 			_fontFamily = family;
 			return this;
+		}
+
+		[NotNull]
+		public string GenerateImageString([NotNull] ImageFormat imageFormat)
+			=> Convert.ToBase64String(GenerateByteArray(imageFormat));
+
+		[NotNull]
+		public byte[] GenerateByteArray([NotNull] ImageFormat imageFormat)
+		{
+			using (var ms = new MemoryStream())
+			{
+				using (var image = GenerateImage())
+				{
+					image.Save(ms, imageFormat);
+				}
+				return ms.ToArray();
+			}
 		}
 
 		[NotNull]
@@ -91,7 +121,7 @@ namespace SimpleBarcodeGenerator
 				{
 					g.DrawImage(barcode, 0, 0, _size.Width, _size.Height - textHeight);
 					//Append another image for the text underneath
-					using (var text = TextToImage(_caption, _size.Width, textHeight, _fontFamily))
+					using (var text = TextToImage(_caption, _size.Width, textHeight, _fontFamily, _addCharacterSpacing))
 					{
 						g.DrawImage(text, 0, _size.Height - textHeight);
 					}
@@ -101,7 +131,7 @@ namespace SimpleBarcodeGenerator
 		}
 
 		[NotNull]
-		private static Image TextToImage(string text, int width, int height, string fontFamily)
+		private static Image TextToImage(string text, int width, int height, string fontFamily, bool addCharacterSpacing)
 		{
 			var bmp = new Bitmap(width, height);
 			using (var testFont = new Font(fontFamily, 50))
@@ -122,15 +152,26 @@ namespace SimpleBarcodeGenerator
 					}
 					using (var font = new Font(testFont.FontFamily, fontSize))
 					{
+						var rect = new Rectangle(0, 0, bmp.Width, bmp.Height);
+						var format = StringFormat.GenericDefault;
+						format.Alignment = StringAlignment.Center;
+						format.LineAlignment = StringAlignment.Center;
+						format.FormatFlags |= StringFormatFlags.MeasureTrailingSpaces;
+						if (addCharacterSpacing)
+						{
+							var noOfSpaces = 0;
+							while (g.MeasureString(PadCharacters(text, noOfSpaces + 1), font, new SizeF(width * 2, height), format)
+							        .Width < width)
+							{
+								noOfSpaces += 1;
+							}
+							text = PadCharacters(text, noOfSpaces);
+						}
 						using (var whiteBrush = new SolidBrush(Color.White))
 						{
 							using (var blackBrush = new SolidBrush(Color.Black))
 							{
-								var rect = new Rectangle(0, 0, bmp.Width, bmp.Height);
 								g.FillRectangle(whiteBrush, rect);
-								var format = StringFormat.GenericDefault;
-								format.Alignment = StringAlignment.Center;
-								format.LineAlignment = StringAlignment.Center;
 								g.DrawString(text, font, blackBrush, rect, format);
 								g.Flush();
 							}
@@ -141,21 +182,27 @@ namespace SimpleBarcodeGenerator
 			return bmp;
 		}
 
-		[NotNull]
-		public byte[] GenerateByteArray([NotNull] ImageFormat imageFormat)
+		[CanBeNull]
+		private static string PadCharacters([CanBeNull] string input, int spaceCount)
 		{
-			using (var ms = new MemoryStream())
+			if (string.IsNullOrWhiteSpace(input) || spaceCount <= 0)
 			{
-				using (var image = GenerateImage())
-				{
-					image.Save(ms, imageFormat);
-				}
-				return ms.ToArray();
+				return input;
 			}
+			var output = "";
+			for (var i = 0; i < spaceCount; i++)
+			{
+				output += " ";
+			}
+			foreach (var character in input)
+			{
+				output += character;
+				for (var i = 0; i < spaceCount; i++)
+				{
+					output += " ";
+				}
+			}
+			return output;
 		}
-
-		[NotNull]
-		public string GenerateImageString([NotNull] ImageFormat imageFormat)
-			=> Convert.ToBase64String(GenerateByteArray(imageFormat));
 	}
 }
